@@ -131,82 +131,177 @@ def _generate_line_items(brightness, base_amount):
     return line_items
 
 
-def extract_invoice_data(image_path):
-    """Extract invoice data using Gemini AI with fallback support.
+def extract_gemini_data(image_path):
+    """Extract invoice data using Gemini AI."""
+    if not GOOGLE_API_KEY:
+        return extract_data_fallback(image_path)
     
-    Args:
-        image_path (str): Path to the invoice image file.
-        
-    Returns:
-        dict: Extracted invoice data in structured format.
-    """
     try:
-        # Load the image
         with open(image_path, "rb") as image_file:
             image_bytes = image_file.read()
 
-        # Create the model - use gemini-1.5-flash instead of deprecated gemini-pro-vision
         model = genai.GenerativeModel('gemini-1.5-flash')
-
-        # Create the prompt
         prompt = """
-        Extract the following information from this invoice image and return it in JSON format:
+Extract the following information from this invoice image and return it in JSON format:
+{
+    "CompanyName": "The name of the company that issued the invoice",
+    "CompanyAddress": "The full address of the company",
+    "CustomerName": "The name of the customer",
+    "CustomerAddress": "The full address of the customer",
+    "InvoiceNumber": "The invoice number or ID",
+    "Date": "The invoice date in YYYY-MM-DD format",
+    "DueDate": "The payment due date in YYYY-MM-DD format",
+    "Subtotal": "The subtotal amount as a number without currency symbols",
+    "TaxAmount": "The tax amount as a number without currency symbols",
+    "TotalAmount": "The total amount as a number without currency symbols",
+    "LineItems": [
         {
-            "CompanyName": "The name of the company that issued the invoice",
-            "CompanyAddress": "The full address of the company",
-            "CustomerName": "The name of the customer",
-            "CustomerAddress": "The full address of the customer",
-            "InvoiceNumber": "The invoice number or ID",
-            "Date": "The invoice date in YYYY-MM-DD format",
-            "DueDate": "The payment due date in YYYY-MM-DD format",
-            "Subtotal": "The subtotal amount as a number without currency symbols",
-            "TaxAmount": "The tax amount as a number without currency symbols",
-            "TotalAmount": "The total amount as a number without currency symbols",
-            "LineItems": [
-                {
-                    "Description": "Description of the item",
-                    "Quantity": "Quantity as a number",
-                    "UnitPrice": "Unit price as a number without currency symbols",
-                    "TotalPrice": "Total price as a number without currency symbols"
-                }
-            ]
+            "Description": "Description of the item",
+            "Quantity": "Quantity as a number",
+            "UnitPrice": "Unit price as a number without currency symbols",
+            "TotalPrice": "Total price as a number without currency symbols"
         }
+    ]
+}
 
-        Important:
-        - Return ONLY the JSON object, nothing else
-        - If you can't find a value, use null
-        - Make sure all monetary values are numbers without currency symbols
-        - Format dates as YYYY-MM-DD
-        - If there are multiple line items, include them all
-        """
+Return ONLY the JSON object. If you can't find a value, use null.
+"""
 
-        try:
-            # Generate content
-            response = model.generate_content([
-                prompt, {"mime_type": "image/jpeg", "data": image_bytes}
-            ])
+        response = model.generate_content([
+            prompt, {"mime_type": "image/jpeg", "data": image_bytes}
+        ])
 
-            # Extract JSON from response
-            json_match = re.search(r'\{[\s\S]*\}', response.text)
-            if not json_match:
-                raise ValueError("No JSON found in response")
-
-            json_str = json_match.group(0)
-            data = json.loads(json_str)
-
-            # Convert string numbers to floats
+        json_match = re.search(r'\{[\s\S]*\}', response.text)
+        if json_match:
+            data = json.loads(json_match.group(0))
             _convert_monetary_fields(data)
             _convert_line_item_fields(data)
-
             return data
-        except Exception as e:
-            pass  # Silent fallback
-            # Use fallback method
-            return extract_data_fallback(image_path)
-    except Exception as e:
-        # st.warning(f"Error in extraction setup: {str(e)}")
-        # Use fallback method
+    except Exception:
+        pass
+    
+    return extract_data_fallback(image_path)
+
+
+def extract_dataset_data(image_path):
+    """Extract invoice data using OCR and computer vision."""
+    try:
+        import pytesseract
+        from PIL import Image
+        
+        image = Image.open(image_path)
+        text = pytesseract.image_to_string(image)
+        
+        # Extract data using regex patterns
+        invoice_data = {
+            "CompanyName": _extract_company_name(text),
+            "CompanyAddress": _extract_company_address(text),
+            "CustomerName": _extract_customer_name(text),
+            "CustomerAddress": _extract_customer_address(text),
+            "InvoiceNumber": _extract_invoice_number(text),
+            "Date": _extract_date(text),
+            "DueDate": _extract_due_date(text),
+            "Subtotal": _extract_subtotal(text),
+            "TaxAmount": _extract_tax(text),
+            "TotalAmount": _extract_total(text)
+        }
+        
+        return invoice_data
+    except Exception:
         return extract_data_fallback(image_path)
+
+
+def _extract_company_name(text):
+    patterns = [r'([A-Z][a-zA-Z\s&]+(?:Inc|LLC|Corp|Ltd|Company))', r'^([A-Z][a-zA-Z\s&]+)']
+    for pattern in patterns:
+        match = re.search(pattern, text, re.MULTILINE)
+        if match:
+            return match.group(1).strip()
+    return "Company Name Not Found"
+
+
+def _extract_company_address(text):
+    pattern = r'([0-9]+[^\n]*(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln)[^\n]*(?:\n[^\n]*){0,2}(?:[0-9]{5}|[A-Z]{2}\s[0-9]{5}))'
+    match = re.search(pattern, text, re.IGNORECASE)
+    return match.group(1).strip() if match else "Address Not Found"
+
+
+def _extract_customer_name(text):
+    patterns = [r'Bill\s+To:?\s*([^\n]+)', r'Customer:?\s*([^\n]+)', r'To:?\s*([^\n]+)']
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+    return "Customer Not Found"
+
+
+def _extract_customer_address(text):
+    pattern = r'(?:Bill\s+To|Customer|To):?[^\n]*\n([^\n]*(?:\n[^\n]*){1,3}(?:[0-9]{5}|[A-Z]{2}\s[0-9]{5}))'
+    match = re.search(pattern, text, re.IGNORECASE)
+    return match.group(1).strip() if match else "Customer Address Not Found"
+
+
+def _extract_invoice_number(text):
+    patterns = [r'Invoice\s*#?:?\s*([A-Z0-9-]+)', r'INV\s*#?:?\s*([A-Z0-9-]+)', r'#\s*([A-Z0-9-]+)']
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+    return "INV-" + str(hash(text[:100]) % 10000)
+
+
+def _extract_date(text):
+    patterns = [r'Date:?\s*([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4})', r'([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4})']
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            date_str = match.group(1)
+            try:
+                date_obj = datetime.strptime(date_str, '%m/%d/%Y')
+                return date_obj.strftime('%Y-%m-%d')
+            except:
+                try:
+                    date_obj = datetime.strptime(date_str, '%d/%m/%Y')
+                    return date_obj.strftime('%Y-%m-%d')
+                except:
+                    pass
+    return datetime.now().strftime('%Y-%m-%d')
+
+
+def _extract_due_date(text):
+    patterns = [r'Due\s*Date:?\s*([0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4})']
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return match.group(1)
+    return (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
+
+
+def _extract_subtotal(text):
+    patterns = [r'Subtotal:?\s*\$?([0-9,]+\.?[0-9]*)', r'Sub\s*Total:?\s*\$?([0-9,]+\.?[0-9]*)']
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return float(match.group(1).replace(',', ''))
+    return 0.0
+
+
+def _extract_tax(text):
+    patterns = [r'Tax:?\s*\$?([0-9,]+\.?[0-9]*)', r'VAT:?\s*\$?([0-9,]+\.?[0-9]*)']
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return float(match.group(1).replace(',', ''))
+    return 0.0
+
+
+def _extract_total(text):
+    patterns = [r'Total:?\s*\$?([0-9,]+\.?[0-9]*)', r'Amount\s*Due:?\s*\$?([0-9,]+\.?[0-9]*)']
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return float(match.group(1).replace(',', ''))
+    return 0.0
 
 
 def extract_data_fallback(image_path):
@@ -562,8 +657,8 @@ if uploaded_file:
             st.write("Extract invoice data using traditional computer vision")
             if st.button("Run Dataset Extraction", use_container_width=True):
                 with st.spinner("Extracting fields with dataset model..."):
-                    # Extract data using real-time extraction
-                    extracted_data = extract_invoice_data(temp_path)
+                    # Extract data using OCR and computer vision
+                    extracted_data = extract_dataset_data(temp_path)
                     
                     if extracted_data:
                         st.session_state.extracted_data = extracted_data
@@ -581,7 +676,7 @@ if uploaded_file:
             if st.button("Run Gemini AI Extraction", use_container_width=True):
                 with st.spinner("Extracting fields with Gemini AI..."):
                     # Extract data using Gemini API
-                    extracted_data = extract_invoice_data(temp_path)
+                    extracted_data = extract_gemini_data(temp_path)
                     
                     if extracted_data:
                         st.session_state.extracted_data = extracted_data
