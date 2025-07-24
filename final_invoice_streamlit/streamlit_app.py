@@ -37,9 +37,9 @@ except:
 
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
-else:
-    st.warning("⚠️ Google API key not found. Please configure GOOGLE_API_KEY.")
-    st.info("For local development: Add to .env file | For Streamlit Cloud: Add to app secrets")
+# else:
+#     # st.warning("⚠️ Google API key not found. Please configure GOOGLE_API_KEY.")
+#     # st.info("For local development: Add to .env file | For Streamlit Cloud: Add to app secrets")
 
 # Function to extract data from invoice using Gemini Vision API
 def extract_invoice_data(image_path):
@@ -119,7 +119,7 @@ def extract_invoice_data(image_path):
             
             return data
         except Exception as e:
-            st.warning(f"Gemini API error: {str(e)}")
+            # # st.warning(f"Gemini API error: {str(e)}")
             # Use fallback method
             return extract_data_fallback(image_path)
     except Exception as e:

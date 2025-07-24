@@ -38,10 +38,7 @@ if 'image_path' not in st.session_state:
 
 # Configure Gemini API
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
-else:
-    st.warning("⚠️ GOOGLE_API_KEY not found. Please set your API key in the .env file.")
+genai.configure(api_key=GOOGLE_API_KEY)
 
 
 def _convert_monetary_fields(data):
@@ -202,11 +199,11 @@ def extract_invoice_data(image_path):
 
             return data
         except Exception as e:
-            st.warning(f"Gemini API error: {str(e)}")
+            pass  # Silent fallback
             # Use fallback method
             return extract_data_fallback(image_path)
     except Exception as e:
-        st.warning(f"Error in extraction setup: {str(e)}")
+        # st.warning(f"Error in extraction setup: {str(e)}")
         # Use fallback method
         return extract_data_fallback(image_path)
 

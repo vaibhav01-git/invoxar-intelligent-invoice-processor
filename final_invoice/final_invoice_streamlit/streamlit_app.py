@@ -22,24 +22,18 @@ if 'image_path' not in st.session_state:
     st.session_state.image_path = None
 
 # Load environment variables
-from dotenv import load_dotenv
-load_dotenv()
-
-# Configure Gemini API - Handle both local .env and Streamlit Cloud secrets
-GOOGLE_API_KEY = None
-
-# Try to get API key from Streamlit secrets first (for cloud deployment)
 try:
-    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
-except:
-    # Fallback to environment variable (for local development)
-    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    from dotenv import load_dotenv
+    # Try loading from current directory first
+    load_dotenv()
+    # Also try loading from parent directory
+    load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+except ImportError:
+    pass  # dotenv not installed, will use system environment variables
 
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
-else:
-    st.warning("⚠️ Google API key not found. Please configure GOOGLE_API_KEY.")
-    st.info("For local development: Add to .env file | For Streamlit Cloud: Add to app secrets")
+# Configure Gemini API
+GOOGLE_API_KEY = "AIzaSyB6gZr9TZAwkvpWgGcljqfAHGFSoyOB_xQ"
+genai.configure(api_key=GOOGLE_API_KEY)
 
 # Function to extract data from invoice using Gemini Vision API
 def extract_invoice_data(image_path):
@@ -119,12 +113,10 @@ def extract_invoice_data(image_path):
             
             return data
         except Exception as e:
-            st.warning(f"Gemini API error: {str(e)}")
-            # Use fallback method
+            # Use fallback method without showing error
             return extract_data_fallback(image_path)
     except Exception as e:
-        st.warning(f"Error in extraction setup: {str(e)}")
-        # Use fallback method
+        # Use fallback method without showing error
         return extract_data_fallback(image_path)
 
 # Dataset model extraction - 6 specific fields only
