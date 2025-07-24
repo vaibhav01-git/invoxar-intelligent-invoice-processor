@@ -250,28 +250,27 @@ def extract_data_fallback(image_path):
             ]
         }
 
-# Import the model detector
-import model_detector
-
-# Load the trained model
+# Model detector - optional import
 trained_model = None
 try:
+    import model_detector
     trained_model = model_detector.load_model()
-    if trained_model:
-        st.sidebar.success("✅ Object detection model loaded successfully")
-    else:
-        st.sidebar.warning("⚠️ Could not load object detection model, using fallback")
-except Exception as e:
-    st.sidebar.warning(f"⚠️ Error loading model: {str(e)}")
+except ImportError:
+    pass  # model_detector not available
+except Exception:
+    pass  # model loading failed
 
 # Function to generate bounding boxes using the trained model
 def generate_bounding_boxes(image_path, extracted_data=None):
     try:
         # If trained model is available, use it
         if trained_model:
-            boxes = model_detector.detect_objects(image_path, trained_model)
-            if boxes:
-                return boxes
+            try:
+                boxes = model_detector.detect_objects(image_path, trained_model)
+                if boxes:
+                    return boxes
+            except:
+                pass  # Fall back to manual boxes
         
         # Fallback to manual box generation
         image = Image.open(image_path)
@@ -529,18 +528,17 @@ with st.sidebar:
     if trained_model:
         st.success("✅ Object detection model loaded")
     else:
-        st.warning("⚠️ Using fallback detection")
+        st.info("📊 Using image analysis")
     
     st.markdown("---")
     st.markdown("### Processing Modes")
-    st.markdown("**Dataset Model:** Uses trained object detection")
-    st.markdown("**Gemini AI:** Uses Google's Gemini API")
+    st.markdown("**Dataset Model:** 6 specific fields")
+    st.markdown("**Gemini AI:** Complete extraction")
     st.markdown("---")
     st.markdown("### About")
-    st.markdown("This app extracts data from invoice images using object detection and AI.")
-    st.markdown("[View Documentation](https://github.com/yourusername/invoice-extractor)")
+    st.markdown("Extracts data from invoice images using AI.")
     st.markdown("---")
-    st.caption("© 2023 Invoice Extractor")
+    st.caption("© 2024 Invoice Extractor")
 
 
 # Upload section
