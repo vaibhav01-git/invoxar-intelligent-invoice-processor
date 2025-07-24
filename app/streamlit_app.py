@@ -36,9 +36,10 @@ if 'boxes' not in st.session_state:
 if 'image_path' not in st.session_state:
     st.session_state.image_path = None
 
-# Configure Gemini API
+# Configure Gemini API securely
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-genai.configure(api_key=GOOGLE_API_KEY)
+if GOOGLE_API_KEY:
+    genai.configure(api_key=GOOGLE_API_KEY)
 
 
 def _convert_monetary_fields(data):

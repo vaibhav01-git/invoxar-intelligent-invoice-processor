@@ -93,15 +93,25 @@ final_invoice/
 
 🔧 Configuration
 
-⚠️ **SECURITY NOTICE**: If you're seeing this after a security alert, please read `API_SECURITY_GUIDE.md` immediately!
+⚠️ **SECURITY NOTICE**: All API keys must be configured as environment variables. Never hardcode secrets!
 
-Environment Variables
-1. Create a `.env` file in the project root:
-```bash
-GOOGLE_API_KEY=your_api_key_here
-```
-2. Never commit the `.env` file to version control
-3. The `.env` file is already added to `.gitignore` for security
+### Quick Security Setup
+1. **Copy environment template:**
+   ```bash
+   copy .env.example .env
+   ```
+
+2. **Add your Google API key to `.env`:**
+   ```
+   GOOGLE_API_KEY=your_actual_api_key_here
+   ```
+
+3. **For Streamlit Cloud deployment, add to app secrets:**
+   ```toml
+   GOOGLE_API_KEY = "your_actual_api_key_here"
+   ```
+
+📖 **For detailed security setup, see [SECURITY_SETUP.md](SECURITY_SETUP.md)**
 
 Supported File Formats
 - Images: JPEG, JPG, PNG

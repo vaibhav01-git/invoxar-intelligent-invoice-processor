@@ -32,7 +32,13 @@ except ImportError:
     pass  # dotenv not installed, will use system environment variables
 
 # Configure Gemini API
-GOOGLE_API_KEY = "AIzaSyB6gZr9TZAwkvpWgGcljqfAHGFSoyOB_xQ"
+# Configure Gemini API securely
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+if GOOGLE_API_KEY:
+    genai.configure(api_key=GOOGLE_API_KEY)
+else:
+    # Fallback mode - app will use mock data without API key
+    pass
 genai.configure(api_key=GOOGLE_API_KEY)
 
 # Function to extract data from invoice using Gemini Vision API

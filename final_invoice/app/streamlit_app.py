@@ -40,8 +40,13 @@ if 'image_path' not in st.session_state:
     st.session_state.image_path = None
 
 # Configure Gemini API
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY") or "AIzaSyB6gZr9TZAwkvpWgGcljqfAHGFSoyOB_xQ"
-genai.configure(api_key=GOOGLE_API_KEY)
+# Configure Gemini API securely
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+if GOOGLE_API_KEY:
+    genai.configure(api_key=GOOGLE_API_KEY)
+else:
+    # Fallback mode - app will use mock data without API key
+    pass
 
 
 def _convert_monetary_fields(data):
