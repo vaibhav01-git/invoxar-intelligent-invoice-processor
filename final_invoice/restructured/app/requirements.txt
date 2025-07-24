@@ -1,0 +1,10 @@
+streamlit
+pandas
+numpy
+Pillow
+google-generativeai
+tensorflow
+opencv-python
+matplotlib
+pyyaml
+dicttoxml

@@ -1,0 +1,74 @@
+# Environment variables
+.env
+.env.local
+.env.production
+.env.staging
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads
+app/uploads/
+uploads/
+
+# Large model files (>100MB)
+workspace/training_demo/pre-trained-models/
+workspace/training_demo/exported-models/
+workspace/training_demo/models/*/ckpt-*.data-*
+*.data-00000-of-00001
+checkpoint/ckpt-*.data-*
+saved_model/variables/variables.data-*
+
+# Logs
+*.log
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Local environment files
+.env.local
+.env.production
+.env.staging
+
+# API Keys and sensitive data
+**/secrets.toml
+**/.env
+!.env.example
+
+# Temporary files
+*.tmp
+*.temp

@@ -1,0 +1,7 @@
+*.png filter=lfs diff=lfs merge=lfs -text
+*.pb filter=lfs diff=lfs merge=lfs -text
+*.jpg filter=lfs diff=lfs merge=lfs -text
+*.data-00000-of-00001 filter=lfs diff=lfs merge=lfs -text
+workspace/training_demo/exported-models/**/* filter=lfs diff=lfs merge=lfs -text
+workspace/training_demo/pre-trained-models/**/* filter=lfs diff=lfs merge=lfs -text
+workspace/training_demo/models/**/ckpt-*.data-* filter=lfs diff=lfs merge=lfs -text
