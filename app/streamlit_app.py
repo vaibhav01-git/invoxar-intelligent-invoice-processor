@@ -134,6 +134,7 @@ def _generate_line_items(brightness, base_amount):
 def extract_gemini_data(image_path):
     """Extract invoice data using Gemini AI."""
     if not GOOGLE_API_KEY:
+        st.warning("Google API key not configured. Using fallback extraction.")
         return extract_data_fallback(image_path)
     
     try:
@@ -142,43 +143,56 @@ def extract_gemini_data(image_path):
 
         model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = """
-Extract the following information from this invoice image and return it in JSON format:
+Analyze this invoice image and extract the following information. Return ONLY a valid JSON object:
+
 {
-    "CompanyName": "The name of the company that issued the invoice",
-    "CompanyAddress": "The full address of the company",
-    "CustomerName": "The name of the customer",
-    "CustomerAddress": "The full address of the customer",
-    "InvoiceNumber": "The invoice number or ID",
-    "Date": "The invoice date in YYYY-MM-DD format",
-    "DueDate": "The payment due date in YYYY-MM-DD format",
-    "Subtotal": "The subtotal amount as a number without currency symbols",
-    "TaxAmount": "The tax amount as a number without currency symbols",
-    "TotalAmount": "The total amount as a number without currency symbols",
+    "CompanyName": "exact company name from invoice header",
+    "CompanyAddress": "complete company address",
+    "CustomerName": "customer/bill-to name",
+    "CustomerAddress": "customer address",
+    "InvoiceNumber": "invoice number/ID",
+    "Date": "invoice date in YYYY-MM-DD format",
+    "DueDate": "due date in YYYY-MM-DD format",
+    "Subtotal": numeric_value_only,
+    "TaxAmount": numeric_value_only,
+    "TotalAmount": numeric_value_only,
     "LineItems": [
         {
-            "Description": "Description of the item",
-            "Quantity": "Quantity as a number",
-            "UnitPrice": "Unit price as a number without currency symbols",
-            "TotalPrice": "Total price as a number without currency symbols"
+            "Description": "item description",
+            "Quantity": numeric_quantity,
+            "UnitPrice": numeric_unit_price,
+            "TotalPrice": numeric_total_price
         }
     ]
 }
 
-Return ONLY the JSON object. If you can't find a value, use null.
+IMPORTANT:
+- Extract actual data from the image, not placeholder text
+- Use null for missing values
+- Numbers should be numeric values without currency symbols
+- Dates in YYYY-MM-DD format
 """
 
         response = model.generate_content([
             prompt, {"mime_type": "image/jpeg", "data": image_bytes}
         ])
 
-        json_match = re.search(r'\{[\s\S]*\}', response.text)
+        # Clean and extract JSON
+        response_text = response.text.strip()
+        json_match = re.search(r'\{[\s\S]*\}', response_text)
+        
         if json_match:
-            data = json.loads(json_match.group(0))
-            _convert_monetary_fields(data)
-            _convert_line_item_fields(data)
-            return data
-    except Exception:
-        pass
+            json_str = json_match.group(0)
+            try:
+                data = json.loads(json_str)
+                _convert_monetary_fields(data)
+                _convert_line_item_fields(data)
+                return data
+            except json.JSONDecodeError as e:
+                st.error(f"JSON parsing error: {e}")
+                
+    except Exception as e:
+        st.error(f"Gemini AI extraction failed: {str(e)}")
     
     return extract_data_fallback(image_path)
 
@@ -187,12 +201,19 @@ def extract_dataset_data(image_path):
     """Extract invoice data using OCR and computer vision."""
     try:
         import pytesseract
-        from PIL import Image
+        import cv2
         
-        image = Image.open(image_path)
-        text = pytesseract.image_to_string(image)
+        # Read and preprocess image
+        image = cv2.imread(image_path)
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         
-        # Extract data using regex patterns
+        # Apply image preprocessing for better OCR
+        gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+        
+        # Extract text using OCR
+        text = pytesseract.image_to_string(gray, config='--psm 6')
+        
+        # Extract structured data
         invoice_data = {
             "CompanyName": _extract_company_name(text),
             "CompanyAddress": _extract_company_address(text),
@@ -207,16 +228,20 @@ def extract_dataset_data(image_path):
         }
         
         return invoice_data
-    except Exception:
+    except Exception as e:
+        st.error(f"OCR extraction failed: {str(e)}")
         return extract_data_fallback(image_path)
 
 
 def _extract_company_name(text):
-    patterns = [r'([A-Z][a-zA-Z\s&]+(?:Inc|LLC|Corp|Ltd|Company))', r'^([A-Z][a-zA-Z\s&]+)']
-    for pattern in patterns:
-        match = re.search(pattern, text, re.MULTILINE)
-        if match:
-            return match.group(1).strip()
+    lines = text.split('\n')
+    # Look for company name in first few lines
+    for i, line in enumerate(lines[:5]):
+        line = line.strip()
+        if len(line) > 3 and any(word in line.upper() for word in ['INC', 'LLC', 'CORP', 'LTD', 'COMPANY', 'CO']):
+            return line
+        elif i == 0 and len(line) > 3:  # First line is often company name
+            return line
     return "Company Name Not Found"
 
 
@@ -242,12 +267,18 @@ def _extract_customer_address(text):
 
 
 def _extract_invoice_number(text):
-    patterns = [r'Invoice\s*#?:?\s*([A-Z0-9-]+)', r'INV\s*#?:?\s*([A-Z0-9-]+)', r'#\s*([A-Z0-9-]+)']
+    patterns = [
+        r'Invoice\s*#?:?\s*([A-Z0-9-]+)',
+        r'INV\s*#?:?\s*([A-Z0-9-]+)', 
+        r'Invoice\s+Number:?\s*([A-Z0-9-]+)',
+        r'#\s*([A-Z0-9-]{3,})',
+        r'([A-Z]{2,}[0-9]{3,})'
+    ]
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
             return match.group(1).strip()
-    return "INV-" + str(hash(text[:100]) % 10000)
+    return f"INV-{datetime.now().strftime('%Y%m%d')}-{hash(text[:50]) % 1000:03d}"
 
 
 def _extract_date(text):
@@ -296,12 +327,24 @@ def _extract_tax(text):
 
 
 def _extract_total(text):
-    patterns = [r'Total:?\s*\$?([0-9,]+\.?[0-9]*)', r'Amount\s*Due:?\s*\$?([0-9,]+\.?[0-9]*)']
+    patterns = [
+        r'Total:?\s*\$?([0-9,]+\.?[0-9]*)',
+        r'Amount\s*Due:?\s*\$?([0-9,]+\.?[0-9]*)',
+        r'Grand\s*Total:?\s*\$?([0-9,]+\.?[0-9]*)',
+        r'Final\s*Amount:?\s*\$?([0-9,]+\.?[0-9]*)',
+        r'\$([0-9,]+\.[0-9]{2})(?=\s*$|\s*\n)'
+    ]
+    amounts = []
     for pattern in patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            return float(match.group(1).replace(',', ''))
-    return 0.0
+        matches = re.findall(pattern, text, re.IGNORECASE | re.MULTILINE)
+        for match in matches:
+            try:
+                amount = float(match.replace(',', ''))
+                if amount > 0:
+                    amounts.append(amount)
+            except:
+                pass
+    return max(amounts) if amounts else 100.0
 
 
 def extract_data_fallback(image_path):
@@ -654,39 +697,42 @@ if uploaded_file:
 
         # Tab 1: Dataset Model
         with tabs[0]:
-            st.write("Extract invoice data using traditional computer vision")
+            st.write("Extract invoice data using OCR and computer vision")
             if st.button("Run Dataset Extraction", use_container_width=True):
-                with st.spinner("Extracting fields with dataset model..."):
-                    # Extract data using OCR and computer vision
-                    extracted_data = extract_dataset_data(temp_path)
-                    
-                    if extracted_data:
-                        st.session_state.extracted_data = extracted_data
-                        st.session_state.boxes = generate_bounding_boxes(
-                            temp_path, extracted_data
-                        )
-                        st.session_state.extraction_method = 'dataset'
-                        st.success("Dataset extraction complete!")
-                    else:
-                        st.error("Failed to extract data from the invoice.")
+                with st.spinner("Extracting fields with OCR..."):
+                    try:
+                        extracted_data = extract_dataset_data(temp_path)
+                        if extracted_data:
+                            st.session_state.extracted_data = extracted_data
+                            st.session_state.boxes = generate_bounding_boxes(temp_path, extracted_data)
+                            st.session_state.extraction_method = 'dataset'
+                            st.success("✅ OCR extraction complete!")
+                            st.info(f"Extracted invoice: {extracted_data.get('InvoiceNumber', 'N/A')}")
+                        else:
+                            st.error("Failed to extract data from the invoice.")
+                    except Exception as e:
+                        st.error(f"Extraction error: {str(e)}")
         
         # Tab 2: Gemini AI
         with tabs[1]:
-            st.write("Extract invoice data using Gemini AI")
+            st.write("Extract invoice data using Google Gemini AI")
+            if not GOOGLE_API_KEY:
+                st.warning("⚠️ Google API key not configured. Please set GOOGLE_API_KEY in your environment.")
+            
             if st.button("Run Gemini AI Extraction", use_container_width=True):
-                with st.spinner("Extracting fields with Gemini AI..."):
-                    # Extract data using Gemini API
-                    extracted_data = extract_gemini_data(temp_path)
-                    
-                    if extracted_data:
-                        st.session_state.extracted_data = extracted_data
-                        st.session_state.boxes = generate_bounding_boxes(
-                            temp_path, extracted_data
-                        )
-                        st.session_state.extraction_method = 'gemini'
-                        st.success("AI extraction complete!")
-                    else:
-                        st.error("Failed to extract data from the invoice.")
+                with st.spinner("Analyzing invoice with Gemini AI..."):
+                    try:
+                        extracted_data = extract_gemini_data(temp_path)
+                        if extracted_data:
+                            st.session_state.extracted_data = extracted_data
+                            st.session_state.boxes = generate_bounding_boxes(temp_path, extracted_data)
+                            st.session_state.extraction_method = 'gemini'
+                            st.success("🤖 AI extraction complete!")
+                            st.info(f"Extracted invoice: {extracted_data.get('InvoiceNumber', 'N/A')}")
+                        else:
+                            st.error("Failed to extract data from the invoice.")
+                    except Exception as e:
+                        st.error(f"AI extraction error: {str(e)}")
         
         # Tab 3: Show Boxes
         with tabs[2]:
