@@ -1,74 +1,71 @@
 # 🔐 Security Setup Guide
 
-## Environment Variables Configuration
+## API Key Configuration
 
-### Local Development Setup
+This project requires a Google Gemini API key to function properly. Follow these steps to set it up securely:
 
-1. **Copy the example environment file:**
+### 1. Get Your Google API Key
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Create a new project or select an existing one
+3. Enable the Generative AI API
+4. Create a new API key
+5. Copy your API key
+
+### 2. Local Development Setup
+
+1. **Copy the environment template:**
    ```bash
    copy .env.example .env
    ```
 
-2. **Edit the `.env` file and add your actual API keys:**
+2. **Edit the `.env` file and add your API key:**
    ```
-   GOOGLE_API_KEY=your_actual_google_api_key_here
+   GOOGLE_API_KEY=your_actual_api_key_here
    ```
 
 3. **Never commit the `.env` file** - it's already in `.gitignore`
 
-### Production Deployment (Streamlit Cloud)
+### 3. Streamlit Cloud Deployment
 
-1. **In Streamlit Cloud Dashboard:**
-   - Go to your app settings
-   - Navigate to "Secrets" section
-   - Add your environment variables:
+1. Go to your Streamlit Cloud app settings
+2. Navigate to "Secrets"
+3. Add your API key:
    ```toml
-   GOOGLE_API_KEY = "your_actual_google_api_key_here"
+   GOOGLE_API_KEY = "your_actual_api_key_here"
    ```
 
-### Docker Deployment
+### 4. Other Cloud Platforms
 
-1. **Using environment variables:**
-   ```bash
-   docker run -e GOOGLE_API_KEY=your_key your_app
-   ```
+Set the `GOOGLE_API_KEY` environment variable in your deployment platform:
 
-2. **Using .env file:**
-   ```bash
-   docker run --env-file .env your_app
-   ```
+- **Heroku:** `heroku config:set GOOGLE_API_KEY=your_key`
+- **Vercel:** Add to environment variables in dashboard
+- **Railway:** Add to environment variables in project settings
 
-### Security Best Practices
+### 5. Verify Setup
 
-✅ **DO:**
-- Use environment variables for all secrets
-- Keep `.env` files local only
-- Use different API keys for different environments
-- Regularly rotate API keys
-- Use `.env.example` for documentation
+Run the application - if the API key is properly configured, you'll see:
+- ✅ No error messages about missing API key
+- 🤖 Gemini AI extraction working properly
 
-❌ **DON'T:**
-- Hardcode API keys in source code
-- Commit `.env` files to version control
-- Share API keys in chat/email
-- Use production keys in development
+### 🚨 Security Best Practices
 
-### API Key Management
-
-1. **Google Cloud Console:**
-   - Go to APIs & Services > Credentials
-   - Create new API key or manage existing ones
-   - Restrict API key usage by IP/domain
-   - Enable only required APIs
-
-2. **Key Rotation:**
-   - Generate new API key
-   - Update environment variables
-   - Test functionality
-   - Revoke old API key
+- ✅ **DO:** Use environment variables for API keys
+- ✅ **DO:** Keep `.env` files in `.gitignore`
+- ✅ **DO:** Use different API keys for development and production
+- ❌ **DON'T:** Hardcode API keys in source code
+- ❌ **DON'T:** Commit `.env` files to version control
+- ❌ **DON'T:** Share API keys in chat, email, or documentation
 
 ### Troubleshooting
 
-- **API key not working?** Check if it's properly set in environment variables
-- **Local vs Production issues?** Ensure both environments have the correct keys
-- **Still seeing warnings?** Restart your application after setting environment variables
+**Error: "Google API key not found"**
+- Check that your `.env` file exists and contains `GOOGLE_API_KEY=your_key`
+- Ensure the `.env` file is in the project root directory
+- Verify there are no extra spaces around the `=` sign
+
+**API quota exceeded errors:**
+- Check your Google Cloud Console for usage limits
+- Consider upgrading your API plan if needed
+- Monitor your API usage regularly

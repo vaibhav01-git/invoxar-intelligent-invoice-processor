@@ -36,9 +36,12 @@ if 'boxes' not in st.session_state:
 if 'image_path' not in st.session_state:
     st.session_state.image_path = None
 
-# Configure Gemini API
-GOOGLE_API_KEY = "AIzaSyBxt8FjXwIJJaGocUXFjdZt8GqwV1NjqF4"
-genai.configure(api_key=GOOGLE_API_KEY)
+# Configure Gemini API securely
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+if GOOGLE_API_KEY:
+    genai.configure(api_key=GOOGLE_API_KEY)
+else:
+    st.error("⚠️ Google API key not found. Please set GOOGLE_API_KEY environment variable.")
 
 
 def _convert_monetary_fields(data):
@@ -139,6 +142,11 @@ def extract_invoice_data(image_path):
     Returns:
         dict: Extracted invoice data in structured format.
     """
+    # Check if API key is available
+    if not GOOGLE_API_KEY:
+        st.warning("⚠️ Google API key not configured. Using fallback extraction.")
+        return extract_data_fallback(image_path)
+    
     try:
         # Load the image
         with open(image_path, "rb") as image_file:
@@ -199,11 +207,11 @@ def extract_invoice_data(image_path):
 
             return data
         except Exception as e:
-            pass  # Silent fallback
+            st.info("ℹ️ Gemini AI unavailable, using fallback extraction.")
             # Use fallback method
             return extract_data_fallback(image_path)
     except Exception as e:
-        # st.warning(f"Error in extraction setup: {str(e)}")
+        st.info("ℹ️ Using fallback extraction method.")
         # Use fallback method
         return extract_data_fallback(image_path)
 

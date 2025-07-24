@@ -1,42 +1,50 @@
 @echo off
-echo ========================================
-echo    SECURE INVOICE EXTRACTOR SETUP
-echo ========================================
+echo 🔐 Secure Setup for Intelligent Invoice Processor
 echo.
 
-echo [1/4] Installing dependencies...
-pip install python-dotenv
-pip install -r app\requirements.txt
-
-echo.
-echo [2/4] Checking .env file...
-if not exist .env (
-    echo WARNING: .env file not found!
-    echo Please create .env file and add your Google API key.
-    echo See API_SECURITY_GUIDE.md for instructions.
+REM Check if .env.example exists
+if not exist ".env.example" (
+    echo ❌ Error: .env.example file not found
+    echo Please ensure you're running this from the project root directory
     pause
     exit /b 1
 )
 
-echo.
-echo [3/4] Verifying .gitignore...
-findstr /C:".env" .gitignore >nul
-if errorlevel 1 (
-    echo Adding .env to .gitignore...
-    echo .env >> .gitignore
+REM Copy .env.example to .env if it doesn't exist
+if not exist ".env" (
+    echo 📋 Creating .env file from template...
+    copy ".env.example" ".env" >nul
+    echo ✅ .env file created successfully
+) else (
+    echo ⚠️  .env file already exists, skipping creation
 )
 
 echo.
-echo [4/4] Starting application...
+echo 🔑 IMPORTANT: Edit the .env file and add your Google API key:
+echo    GOOGLE_API_KEY=your_actual_api_key_here
 echo.
-echo ========================================
-echo    SECURITY REMINDER
-echo ========================================
-echo - Never commit API keys to git
-echo - Keep your .env file secure
-echo - Regularly rotate API keys
-echo ========================================
+echo 🌐 Get your API key from: https://console.cloud.google.com/apis/credentials
+echo.
+echo 📖 For detailed setup instructions, see SECURITY_SETUP.md
 echo.
 
+REM Check if virtual environment exists
+if not exist "venv" (
+    echo 🐍 Creating Python virtual environment...
+    python -m venv venv
+    echo ✅ Virtual environment created
+)
+
+echo 🚀 Activating virtual environment and installing dependencies...
+call venv\Scripts\activate.bat
 cd app
-streamlit run streamlit_app.py
+pip install -r requirements.txt
+
+echo.
+echo ✅ Setup complete! 
+echo.
+echo 📝 Next steps:
+echo    1. Edit .env file with your Google API key
+echo    2. Run: cd app && streamlit run streamlit_app.py
+echo.
+pause

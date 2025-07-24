@@ -20,9 +20,10 @@ An intelligent invoice data extraction platform that uses AI and computer vision
 
 🚀 Quick Start
 
-⚠️ **FIRST TIME SETUP**: Run the secure setup script:
+⚠️ **FIRST TIME SETUP**: Configure your API key securely:
 ```bash
-setup_secure.bat
+copy .env.example .env
+# Then edit .env with your Google API key
 ```
 
 Option 1: Streamlit Interface (Recommended)
@@ -93,9 +94,9 @@ final_invoice/
 
 🔧 Configuration
 
-⚠️ **SECURITY NOTICE**: All API keys must be configured as environment variables. Never hardcode secrets!
+⚠️ **SECURITY NOTICE**: This project requires a Google Gemini API key. All API keys must be configured as environment variables for security.
 
-### Quick Security Setup
+### Quick Setup
 1. **Copy environment template:**
    ```bash
    copy .env.example .env
@@ -112,6 +113,8 @@ final_invoice/
    ```
 
 📖 **For detailed security setup, see [SECURITY_SETUP.md](SECURITY_SETUP.md)**
+
+🔑 **Get your API key:** [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
 
 Supported File Formats
 - Images: JPEG, JPG, PNG
