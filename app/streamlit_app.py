@@ -36,13 +36,9 @@ if 'boxes' not in st.session_state:
 if 'image_path' not in st.session_state:
     st.session_state.image_path = None
 
-# Configure Gemini API securely
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-try:
-    if GOOGLE_API_KEY:
-        genai.configure(api_key=GOOGLE_API_KEY)
-except:
-    pass
+# Configure Gemini API
+GOOGLE_API_KEY = "AIzaSyA3dPIN5Yn0OlNomMAEKjftbHTSSeF4Ikg"
+genai.configure(api_key=GOOGLE_API_KEY)
 
 
 def _convert_monetary_fields(data):
@@ -135,19 +131,13 @@ def _generate_line_items(brightness, base_amount):
 
 
 def extract_gemini_data(image_path):
-    """Extract invoice data using Gemini AI or intelligent fallback."""
-    # Check for API key in multiple locations
-    api_key = GOOGLE_API_KEY or os.getenv("GOOGLE_API_KEY") or st.secrets.get("GOOGLE_API_KEY", None)
-    
-    if api_key:
-        try:
-            genai.configure(api_key=api_key)
-            
-            with open(image_path, "rb") as image_file:
-                image_bytes = image_file.read()
+    """Extract invoice data using Gemini AI."""
+    try:
+        with open(image_path, "rb") as image_file:
+            image_bytes = image_file.read()
 
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            prompt = """
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = """
 Analyze this invoice image and extract the following information. Return ONLY a valid JSON object:
 
 {
@@ -174,21 +164,20 @@ Analyze this invoice image and extract the following information. Return ONLY a 
 Extract actual data from the image. Use null for missing values.
 """
 
-            response = model.generate_content([
-                prompt, {"mime_type": "image/jpeg", "data": image_bytes}
-            ])
+        response = model.generate_content([
+            prompt, {"mime_type": "image/jpeg", "data": image_bytes}
+        ])
 
-            json_match = re.search(r'\{[\s\S]*\}', response.text.strip())
-            if json_match:
-                data = json.loads(json_match.group(0))
-                _convert_monetary_fields(data)
-                _convert_line_item_fields(data)
-                return data
+        json_match = re.search(r'\{[\s\S]*\}', response.text.strip())
+        if json_match:
+            data = json.loads(json_match.group(0))
+            _convert_monetary_fields(data)
+            _convert_line_item_fields(data)
+            return data
                 
-        except Exception as e:
-            st.info(f"Gemini AI unavailable, using intelligent analysis: {str(e)}")
+    except Exception as e:
+        st.error(f"Gemini AI error: {str(e)}")
     
-    # Intelligent fallback using image analysis
     return _extract_intelligent_fallback(image_path)
 
 
@@ -739,10 +728,10 @@ if uploaded_file:
 
         # Tab 1: Dataset Model
         with tabs[0]:
-            st.write("Extract invoice data using image analysis")
-            st.info("📊 Uses computer vision to analyze image properties")
+            st.write("Extract invoice data using computer vision")
+            st.info("📊 Analyzes image properties for data extraction")
             if st.button("Run Dataset Extraction", use_container_width=True):
-                with st.spinner("Analyzing image properties..."):
+                with st.spinner("Processing with dataset model..."):
                     try:
                         extracted_data = extract_dataset_data(temp_path)
                         if extracted_data:
@@ -759,14 +748,10 @@ if uploaded_file:
         # Tab 2: Gemini AI
         with tabs[1]:
             st.write("Extract invoice data using Google Gemini AI")
-            api_key = GOOGLE_API_KEY or os.getenv("GOOGLE_API_KEY") or st.secrets.get("GOOGLE_API_KEY", None)
-            if not api_key:
-                st.info("💡 No API key found. Will use intelligent image analysis instead.")
-            else:
-                st.success("✅ Gemini AI ready")
+            st.success("✅ Gemini AI ready")
             
             if st.button("Run Gemini AI Extraction", use_container_width=True):
-                with st.spinner("Analyzing invoice with AI..."):
+                with st.spinner("Analyzing invoice with Gemini AI..."):
                     try:
                         extracted_data = extract_gemini_data(temp_path)
                         if extracted_data:
