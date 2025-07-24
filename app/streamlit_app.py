@@ -230,39 +230,46 @@ def _extract_intelligent_fallback(image_path):
 
 
 def extract_dataset_data(image_path):
-    """Extract invoice data using OCR from actual uploaded image (6 fields only)."""
+    """Extract invoice data using Gemini AI for 6 fields only."""
     try:
-        # Use EasyOCR for text extraction
-        import easyocr
-        from PIL import Image
-        
-        # Initialize OCR reader
-        reader = easyocr.Reader(['en'])
-        
-        # Read text from image
-        results = reader.readtext(image_path)
-        
-        # Extract all text
-        extracted_text = ' '.join([result[1] for result in results])
-        
-        # Parse extracted text for 6 specific fields
-        invoice_data = {
-            "CompanyName": _extract_company_name_ocr(extracted_text),
-            "CompanyAddress": _extract_company_address_ocr(extracted_text),
-            "CustomerAddress": _extract_customer_address_ocr(extracted_text),
-            "Total": _extract_total_ocr(extracted_text),
-            "InvoiceNumber": _extract_invoice_number_ocr(extracted_text),
-            "Date": _extract_date_ocr(extracted_text)
-        }
-        
-        return invoice_data
-        
-    except ImportError:
-        # Fallback to basic image analysis if EasyOCR not available
-        return _extract_basic_ocr(image_path)
+        with open(image_path, "rb") as image_file:
+            image_bytes = image_file.read()
+
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = """
+Analyze this invoice image and extract ONLY these 6 specific fields. Return as JSON:
+
+{
+    "CompanyName": "exact company name from invoice",
+    "CompanyAddress": "complete company address", 
+    "CustomerAddress": "customer billing address",
+    "Total": numeric_total_amount_only,
+    "InvoiceNumber": "invoice number/ID",
+    "Date": "invoice date in YYYY-MM-DD format"
+}
+
+Extract actual text from the image. Use null for missing values.
+"""
+
+        response = model.generate_content([
+            prompt, {"mime_type": "image/jpeg", "data": image_bytes}
+        ])
+
+        json_match = re.search(r'\{[\s\S]*\}', response.text.strip())
+        if json_match:
+            data = json.loads(json_match.group(0))
+            if 'Total' in data and data['Total']:
+                try:
+                    if isinstance(data['Total'], str):
+                        data['Total'] = float(data['Total'].replace('$', '').replace(',', '').strip())
+                except:
+                    pass
+            return data
+                
     except Exception as e:
-        st.error(f"OCR extraction failed: {str(e)}")
-        return _generate_fallback_dataset_data(image_path)
+        st.error(f"Gemini AI extraction failed: {str(e)}")
+    
+    return _generate_fallback_dataset_data(image_path)
 
 
 def _extract_basic_ocr(image_path):
@@ -824,17 +831,17 @@ if uploaded_file:
 
         # Tab 1: Dataset Model
         with tabs[0]:
-            st.write("Extract invoice data using OCR (6 specific fields)")
-            st.info("📝 Real-time OCR extracts: CompanyName, CompanyAddress, CustomerAddress, Total, InvoiceNumber, Date")
+            st.write("Extract invoice data using Gemini AI (6 specific fields)")
+            st.info("🎯 Extracts 6 fields: CompanyName, CompanyAddress, CustomerAddress, Total, InvoiceNumber, Date")
             if st.button("Run Dataset Extraction", use_container_width=True):
-                with st.spinner("Reading text from uploaded invoice..."):
+                with st.spinner("Extracting 6 fields from invoice..."):
                     try:
                         extracted_data = extract_dataset_data(temp_path)
                         if extracted_data:
                             st.session_state.extracted_data = extracted_data
                             st.session_state.boxes = generate_bounding_boxes(temp_path, extracted_data)
                             st.session_state.extraction_method = 'dataset'
-                            st.success("✅ Real-time OCR extraction complete!")
+                            st.success("✅ Dataset extraction complete!")
                             st.info(f"Found invoice: {extracted_data.get('InvoiceNumber', 'N/A')}")
                         else:
                             st.error("Failed to extract data from the invoice.")
@@ -843,23 +850,23 @@ if uploaded_file:
         
         # Tab 2: Gemini AI
         with tabs[1]:
-            st.write("Extract invoice data using Advanced OCR")
-            st.success("✅ Advanced OCR ready")
+            st.write("Extract invoice data using Google Gemini AI")
+            st.success("✅ Gemini AI ready")
             
-            if st.button("Run Advanced Extraction", use_container_width=True):
-                with st.spinner("Analyzing invoice with advanced OCR..."):
+            if st.button("Run Gemini AI Extraction", use_container_width=True):
+                with st.spinner("Analyzing invoice with Gemini AI..."):
                     try:
                         extracted_data = extract_gemini_data(temp_path)
                         if extracted_data:
                             st.session_state.extracted_data = extracted_data
                             st.session_state.boxes = generate_bounding_boxes(temp_path, extracted_data)
                             st.session_state.extraction_method = 'gemini'
-                            st.success("🔍 Advanced OCR extraction complete!")
+                            st.success("🤖 AI extraction complete!")
                             st.info(f"Extracted invoice: {extracted_data.get('InvoiceNumber', 'N/A')}")
                         else:
                             st.error("Failed to extract data from the invoice.")
                     except Exception as e:
-                        st.error(f"OCR extraction error: {str(e)}")
+                        st.error(f"AI extraction error: {str(e)}")
         
         # Tab 3: Show Boxes
         with tabs[2]:
