@@ -21,24 +21,8 @@ if 'boxes' not in st.session_state:
 if 'image_path' not in st.session_state:
     st.session_state.image_path = None
 
-# Load environment variables
-try:
-    from dotenv import load_dotenv
-    # Try loading from current directory first
-    load_dotenv()
-    # Also try loading from parent directory
-    load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
-except ImportError:
-    pass  # dotenv not installed, will use system environment variables
-
 # Configure Gemini API
-# Configure Gemini API securely
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
-else:
-    # Fallback mode - app will use mock data without API key
-    pass
+GOOGLE_API_KEY = "AIzaSyC6GBKQvx_f2DYaElAN6pumiqaeJPdizyc"
 genai.configure(api_key=GOOGLE_API_KEY)
 
 # Function to extract data from invoice using Gemini Vision API
@@ -119,10 +103,12 @@ def extract_invoice_data(image_path):
             
             return data
         except Exception as e:
-            # Use fallback method without showing error
+            st.warning(f"Gemini API error: {str(e)}")
+            # Use fallback method
             return extract_data_fallback(image_path)
     except Exception as e:
-        # Use fallback method without showing error
+        st.warning(f"Error in extraction setup: {str(e)}")
+        # Use fallback method
         return extract_data_fallback(image_path)
 
 # Dataset model extraction - 6 specific fields only

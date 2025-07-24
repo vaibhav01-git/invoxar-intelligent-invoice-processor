@@ -230,117 +230,60 @@ def _extract_intelligent_fallback(image_path):
 
 
 def extract_dataset_data(image_path):
-    """Extract invoice data using trained TensorFlow model (6 fields only)."""
+    """Extract invoice data using OCR from actual uploaded image (6 fields only)."""
     try:
-        import tensorflow as tf
-        from PIL import Image
-        import hashlib
-        
-        # Load trained model
-        model_path = os.path.join(os.path.dirname(__file__), '..', 'workspace', 'training_demo', 'exported-models', 'my_model', 'saved_model')
-        
-        if os.path.exists(model_path):
-            # Load TensorFlow model
-            detect_fn = tf.saved_model.load(model_path)
-            
-            # Preprocess image
-            image = Image.open(image_path).convert('RGB')
-            img_array = np.array(image)
-            input_tensor = tf.convert_to_tensor(img_array)
-            input_tensor = input_tensor[tf.newaxis, ...]
-            
-            # Run inference
-            detections = detect_fn(input_tensor)
-            
-            # Extract detected fields (6 fields from trained model)
-            boxes = detections['detection_boxes'][0].numpy()
-            classes = detections['detection_classes'][0].numpy().astype(int)
-            scores = detections['detection_scores'][0].numpy()
-            
-            # Map class IDs to field names (based on label_map.pbtxt)
-            class_names = {
-                1: 'CompanyName',
-                2: 'CompanyAddress', 
-                3: 'CustomerAddress',
-                4: 'Total',
-                5: 'InvoiceNumber',
-                6: 'Date'
-            }
-            
-            # Extract data from detections
-            extracted_fields = {}
-            img_hash = hashlib.md5(img_array.tobytes()[:5000]).hexdigest()[:8].upper()
-            
-            for i, (box, class_id, score) in enumerate(zip(boxes, classes, scores)):
-                if score > 0.5 and class_id in class_names:
-                    field_name = class_names[class_id]
-                    
-                    # Generate realistic data based on detected field and image properties
-                    if field_name == 'CompanyName':
-                        extracted_fields[field_name] = f"TechCorp {img_hash[:4]} Ltd"
-                    elif field_name == 'CompanyAddress':
-                        extracted_fields[field_name] = f"{image.width} Innovation Drive, Tech City, TC {image.height//100}"
-                    elif field_name == 'CustomerAddress':
-                        extracted_fields[field_name] = f"{image.height//10} Business Ave, Commerce City, CC {img_hash[2:4]}"
-                    elif field_name == 'Total':
-                        extracted_fields[field_name] = round(((len(img_array.tobytes()) / 10000) + (np.mean(img_array) * 5)) * 1.12, 2)
-                    elif field_name == 'InvoiceNumber':
-                        extracted_fields[field_name] = f"INV-{datetime.now().strftime('%Y')}-{img_hash}"
-                    elif field_name == 'Date':
-                        extracted_fields[field_name] = datetime.now().strftime('%Y-%m-%d')
-            
-            # Ensure all 6 fields are present
-            default_values = {
-                "CompanyName": f"TechCorp {img_hash[:4]} Ltd",
-                "CompanyAddress": f"{image.width} Innovation Drive, Tech City, TC {image.height//100}",
-                "CustomerAddress": f"{image.height//10} Business Ave, Commerce City, CC {img_hash[2:4]}",
-                "Total": round(((len(img_array.tobytes()) / 10000) + (np.mean(img_array) * 5)) * 1.12, 2),
-                "InvoiceNumber": f"INV-{datetime.now().strftime('%Y')}-{img_hash}",
-                "Date": datetime.now().strftime('%Y-%m-%d')
-            }
-            
-            for field in default_values:
-                if field not in extracted_fields:
-                    extracted_fields[field] = default_values[field]
-            
-            return extracted_fields
-            
-        else:
-            # Fallback if model not found
-            return _generate_fallback_dataset_data(image_path)
-            
+        # Use Gemini AI for OCR extraction of 6 specific fields
+        with open(image_path, "rb") as image_file:
+            image_bytes = image_file.read()
+
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = """
+Analyze this invoice image and extract ONLY these 6 specific fields. Return as JSON:
+
+{
+    "CompanyName": "exact company name from invoice",
+    "CompanyAddress": "complete company address", 
+    "CustomerAddress": "customer billing address",
+    "Total": numeric_total_amount_only,
+    "InvoiceNumber": "invoice number/ID",
+    "Date": "invoice date in YYYY-MM-DD format"
+}
+
+Extract actual text from the image. Use null for missing values.
+"""
+
+        response = model.generate_content([
+            prompt, {"mime_type": "image/jpeg", "data": image_bytes}
+        ])
+
+        json_match = re.search(r'\{[\s\S]*\}', response.text.strip())
+        if json_match:
+            data = json.loads(json_match.group(0))
+            # Convert Total to float if it's a string
+            if 'Total' in data and data['Total']:
+                try:
+                    if isinstance(data['Total'], str):
+                        data['Total'] = float(data['Total'].replace('$', '').replace(',', '').strip())
+                except:
+                    pass
+            return data
+                
     except Exception as e:
-        st.info(f"Using fallback extraction (model unavailable): {str(e)}")
-        return _generate_fallback_dataset_data(image_path)
+        st.error(f"OCR extraction failed: {str(e)}")
+    
+    return _generate_fallback_dataset_data(image_path)
 
 
 def _generate_fallback_dataset_data(image_path):
-    """Generate fallback data when trained model is unavailable."""
-    try:
-        from PIL import Image
-        import hashlib
-        
-        image = Image.open(image_path)
-        img_array = np.array(image)
-        img_hash = hashlib.md5(img_array.tobytes()[:5000]).hexdigest()[:8].upper()
-        
-        return {
-            "CompanyName": f"TechCorp {img_hash[:4]} Ltd",
-            "CompanyAddress": f"{image.width} Innovation Drive, Tech City, TC {image.height//100}",
-            "CustomerAddress": f"{image.height//10} Business Ave, Commerce City, CC {img_hash[2:4]}",
-            "Total": round(((len(img_array.tobytes()) / 10000) + (np.mean(img_array) * 5)) * 1.12, 2),
-            "InvoiceNumber": f"INV-{datetime.now().strftime('%Y')}-{img_hash}",
-            "Date": datetime.now().strftime('%Y-%m-%d')
-        }
-    except Exception:
-        return {
-            "CompanyName": "Sample Company Ltd",
-            "CompanyAddress": "123 Business St, City, State 12345",
-            "CustomerAddress": "456 Client Ave, Town, State 67890",
-            "Total": 1250.75,
-            "InvoiceNumber": "INV-2024-SAMPLE",
-            "Date": datetime.now().strftime('%Y-%m-%d')
-        }
+    """Generate fallback data when OCR fails."""
+    return {
+        "CompanyName": "OCR Failed - Company Name",
+        "CompanyAddress": "OCR Failed - Company Address", 
+        "CustomerAddress": "OCR Failed - Customer Address",
+        "Total": 0.00,
+        "InvoiceNumber": "OCR-FAILED",
+        "Date": datetime.now().strftime('%Y-%m-%d')
+    }
 
 
 def _extract_company_name(text):
@@ -785,18 +728,18 @@ if uploaded_file:
 
         # Tab 1: Dataset Model
         with tabs[0]:
-            st.write("Extract invoice data using trained model")
-            st.info("🎯 Trained model detects 6 specific fields: CompanyName, CompanyAddress, CustomerAddress, Total, InvoiceNumber, Date")
+            st.write("Extract invoice data using OCR (6 specific fields)")
+            st.info("📝 OCR extracts 6 fields: CompanyName, CompanyAddress, CustomerAddress, Total, InvoiceNumber, Date")
             if st.button("Run Dataset Extraction", use_container_width=True):
-                with st.spinner("Processing with trained model..."):
+                with st.spinner("Extracting text from invoice image..."):
                     try:
                         extracted_data = extract_dataset_data(temp_path)
                         if extracted_data:
                             st.session_state.extracted_data = extracted_data
                             st.session_state.boxes = generate_bounding_boxes(temp_path, extracted_data)
                             st.session_state.extraction_method = 'dataset'
-                            st.success("✅ Trained model extraction complete!")
-                            st.info(f"Detected 6 fields from invoice: {extracted_data.get('InvoiceNumber', 'N/A')}")
+                            st.success("✅ OCR extraction complete!")
+                            st.info(f"Extracted from invoice: {extracted_data.get('InvoiceNumber', 'N/A')}")
                         else:
                             st.error("Failed to extract data from the invoice.")
                     except Exception as e:
