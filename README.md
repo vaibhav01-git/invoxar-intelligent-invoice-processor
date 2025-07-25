@@ -8,6 +8,8 @@
 
 An intelligent invoice data extraction platform that uses AI and computer vision to automatically extract structured data from invoice images. Features both traditional computer vision models and Google's Gemini AI for accurate field detection and data extraction.
 
+**🌐 Live Demo**: [https://invoxar.streamlit.app/](https://invoxar.streamlit.app/)
+
 ✨ Features
 
 - 🤖 Dual AI Extraction: Choose between traditional computer vision models or Google Gemini AI
@@ -20,6 +22,10 @@ An intelligent invoice data extraction platform that uses AI and computer vision
 
 🚀 Quick Start
 
+### **🌐 Live Demo**
+**Try the app online**: [https://invoxar.streamlit.app/](https://invoxar.streamlit.app/)
+
+### **💻 Local Development**
 ⚠️ **FIRST TIME SETUP**: Configure your API key securely:
 ```bash
 copy .env.example .env
