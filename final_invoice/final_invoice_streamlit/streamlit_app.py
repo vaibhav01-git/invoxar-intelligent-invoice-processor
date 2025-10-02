@@ -36,10 +36,9 @@ if 'boxes' not in st.session_state:
 if 'image_path' not in st.session_state:
     st.session_state.image_path = None
 
-# Configure Gemini API securely
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
+# Configure Gemini API with provided key
+GOOGLE_API_KEY = "AIzaSyDXZns16fyITP89bYyLMEF14EktIbuKsKI"
+genai.configure(api_key=GOOGLE_API_KEY)
 
 
 def _convert_monetary_fields(data):
@@ -131,6 +130,31 @@ def _generate_line_items(brightness, base_amount):
     return line_items
 
 
+def get_gemini_response(image_path, prompt):
+    """Get response from Gemini AI for invoice extraction."""
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # Load image
+        with open(image_path, "rb") as f:
+            image_bytes = f.read()
+        
+        # Determine mime type
+        if image_path.lower().endswith('.png'):
+            mime_type = "image/png"
+        else:
+            mime_type = "image/jpeg"
+        
+        image_parts = [{
+            "mime_type": mime_type,
+            "data": image_bytes
+        }]
+        
+        response = model.generate_content([prompt, image_parts[0]])
+        return response.text
+    except Exception as e:
+        return None
+
 def extract_invoice_data(image_path):
     """Extract invoice data using Gemini AI with fallback support.
     
@@ -141,15 +165,9 @@ def extract_invoice_data(image_path):
         dict: Extracted invoice data in structured format.
     """
     try:
-        # Load the image
-        with open(image_path, "rb") as image_file:
-            image_bytes = image_file.read()
-
-        # Create the model - use gemini-1.5-flash instead of deprecated gemini-pro-vision
-        model = genai.GenerativeModel('gemini-1.5-flash')
-
-        # Create the prompt
+        # Create the prompt for invoice extraction
         prompt = """
+        You are an expert in understanding invoices.
         Extract the following information from this invoice image and return it in JSON format:
         {
             "CompanyName": "The name of the company that issued the invoice",
@@ -180,31 +198,29 @@ def extract_invoice_data(image_path):
         - If there are multiple line items, include them all
         """
 
-        try:
-            # Generate content
-            response = model.generate_content([
-                prompt, {"mime_type": "image/jpeg", "data": image_bytes}
-            ])
-
-            # Extract JSON from response
-            json_match = re.search(r'\{[\s\S]*\}', response.text)
-            if not json_match:
-                raise ValueError("No JSON found in response")
-
-            json_str = json_match.group(0)
-            data = json.loads(json_str)
-
-            # Convert string numbers to floats
-            _convert_monetary_fields(data)
-            _convert_line_item_fields(data)
-
-            return data
-        except Exception as e:
-            pass  # Silent fallback
-            # Use fallback method
-            return extract_data_fallback(image_path)
+        # Get response from Gemini
+        response_text = get_gemini_response(image_path, prompt)
+        
+        if response_text:
+            try:
+                # Extract JSON from response
+                json_match = re.search(r'\{[\s\S]*\}', response_text)
+                if json_match:
+                    json_str = json_match.group(0)
+                    data = json.loads(json_str)
+                    
+                    # Convert string numbers to floats
+                    _convert_monetary_fields(data)
+                    _convert_line_item_fields(data)
+                    
+                    return data
+            except Exception:
+                pass
+        
+        # Use fallback method if Gemini fails
+        return extract_data_fallback(image_path)
+        
     except Exception as e:
-        # st.warning(f"Error in extraction setup: {str(e)}")
         # Use fallback method
         return extract_data_fallback(image_path)
 
@@ -564,8 +580,8 @@ if uploaded_file:
             st.write("Extract invoice data using traditional computer vision")
             if st.button("Run Dataset Extraction", use_container_width=True):
                 with st.spinner("Extracting fields with dataset model..."):
-                    # Extract data using real-time extraction
-                    extracted_data = extract_invoice_data(temp_path)
+                    # Extract data using fallback method for dataset model
+                    extracted_data = extract_data_fallback(temp_path)
                     
                     if extracted_data:
                         st.session_state.extracted_data = extracted_data
